@@ -768,7 +768,7 @@ const guardar = () => sessionStorage.setItem('reserva', JSON.stringify(reserva))
 // ============ PASO 1: LAS MESAS ============
 async function mostrarMesas(){
   contenido.classList.add('con-mesas');
-  contenido.innerHTML = '<h2>Elige tu mesa, recuerda que la reservación es de solamente dos horas</h2><p>Cargando mesas...</p>';
+  contenido.innerHTML = '<h2>Elige tu mesa</h2><p>Cargando mesas...</p>';
 
   try{
     const resp = await fetch(contenido.dataset.api);
@@ -824,7 +824,7 @@ async function mostrarMesas(){
 
   }catch(err){
     console.error(err);
-    contenido.innerHTML = '<h2>Elige tu mesa</h2><p>No se pudieron cargar las mesas.</p>';
+    contenido.innerHTML = '<h2>Elige tu mesa, recuerda que la reservación es de solamente dos horas</h2><p>No se pudieron cargar las mesas.</p>';
   }
 }
 
