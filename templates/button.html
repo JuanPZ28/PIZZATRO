@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<!-- Hace que la página se vea bien en celulares; viewport-fit=cover usa toda la pantalla -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Botones estilo Balatro</title>
+
+<!-- Fuente pixelada de Google Fonts (parecida a la de Balatro) -->
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;700&display=swap" rel="stylesheet">
+
+<style>
+/* ============================================================
+   VARIABLES DE COLOR
+   Cada botón tiene un color principal (-) y uno oscuro (-d) para
+   la sombra/base 3D. Cambia estos valores para otros colores.
+   ============================================================ */
+:root{
+  --felt:#1f5c4a;        /* verde del tapete */
+  --felt-dark:#123b30;   /* verde oscuro del fondo */
+  --ink:#1b1626;         /* casi negro: bordes y sombras de texto */
+  --cream:#f1e9d6;       /* color crema para textos */
+
+  --blue:#009dff;   --blue-d:#0064a8;     /* botón azul */
+  --red:#fe5f55;    --red-d:#a83a32;      /* botón rojo */
+  --orange:#ff9a00; --orange-d:#a8650a;   /* botón naranja */
+  --green:#4bc292;  --green-d:#26795a;    /* botón verde */
+
+  box-sizing:border-box;
+  /* Deja espacio en celulares con notch (la "muesca" de la cámara) */
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+/* El padding no hace crecer los elementos (más fácil de calcular tamaños) */
+*,*::before,*::after{box-sizing:inherit}
+
+html,body{height:100%;margin:0}
+
+body{
+  background:var(--felt-dark);
+  font-family:'Pixelify Sans','Courier New',monospace; /* si no carga la fuente, usa monospace */
+  color:var(--cream);
+  /* Centra todo en la pantalla */
+  display:flex;align-items:center;justify-content:center;
+  overflow:hidden;                /* sin barras de scroll */
+  image-rendering:pixelated;      /* los píxeles se ven nítidos, sin suavizar */
+}
+
+/* ============================================================
+   FONDO: remolino de franjas verdes que gira lentamente
+   ============================================================ */
+.bg{
+  position:fixed;inset:0;z-index:0;   /* ocupa toda la pantalla, detrás de todo */
+  /* Franjas alternadas en forma de rayos desde el centro */
+  background:repeating-conic-gradient(from 0deg at 50% 50%, #1f5c4a 0 15deg, #1a5042 15deg 30deg);
+  /* steps(80) hace que gire "a saltitos" (estilo pixel) en vez de suave */
+  animation:spin 40s steps(80) infinite;
+  transform:scale(2.2);               /* más grande que la pantalla para que no se vean bordes al girar */
+}
+/* Viñeta: oscurece los bordes para dar profundidad */
+.bg::after{
+  content:"";position:absolute;inset:0;
+  background:radial-gradient(circle,transparent 20%,#0a1f19 75%);
+}
+@keyframes spin{ to{ transform:scale(2.2) rotate(360deg) } }
+
+/* Líneas de pantalla CRT (efecto retro) encima de todo */
+.scan{
+  position:fixed;inset:0;z-index:3;
+  pointer-events:none;                /* no estorba los clics */
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,.18) 0 2px,transparent 2px 4px);
+}
+
+/* ============================================================
+   CONTENEDOR Y TÍTULO
+   ============================================================ */
+.panel{
+  position:relative;z-index:2;        /* por encima del fondo */
+  display:flex;flex-direction:column;align-items:center;
+  gap:34px;padding:24px;max-width:100%;
+}
+h1{
+  margin:0;
+  font-size:clamp(28px,7vw,44px);     /* tamaño que se adapta a la pantalla (mín, ideal, máx) */
+  font-weight:700;text-align:center;
+  text-shadow:0 4px 0 var(--ink);     /* sombra sólida hacia abajo, sin difuminar = look pixel */
+  animation:bob 2.4s steps(6) infinite; /* el título sube y baja */
+}
+.row{display:flex;gap:28px;flex-wrap:wrap;justify-content:center}
+
+/* ============================================================
+   EL BOTÓN (clase .bal)
+   --c = color principal, --d = color oscuro de la base
+   ============================================================ */
+.bal{
+  --c:var(--blue); --d:var(--blue-d);  /* por defecto es azul */
+  position:relative;                   /* necesario para el brillo (::before) */
+  border:0;cursor:pointer;
+  font:700 clamp(20px,5vw,28px)/1 'Pixelify Sans','Courier New',monospace;
+  color:#fff;letter-spacing:1px;
+  padding:16px 34px;
+  margin:4px 4px 12px;                 /* espacio extra abajo para la base 3D */
+  background:var(--c);
+  text-shadow:0 3px 0 var(--d);        /* sombra del texto del color oscuro */
+
+  /* TRUCO DE ESQUINAS PIXELADAS Y BASE 3D con box-shadow.
+     Formato: desplazX desplazY difuminado expansión color
+     (todas con difuminado 0 = sombras duras, sin suavizar) */
+  box-shadow:
+    /* 1) Copias del color principal arriba/abajo/izq/der:
+          forman la silueta con las esquinas "mordidas" */
+    0 -4px 0 0 var(--c),
+    0  4px 0 0 var(--c),
+    -4px 0 0 0 var(--c),
+     4px 0 0 0 var(--c),
+    /* 2) Base oscura debajo: da la sensación de botón con grosor */
+    0  8px 0 0 var(--d),
+    -4px 4px 0 0 var(--d),
+     4px 4px 0 0 var(--d),
+    /* 3) Contorno negro alrededor de todo (expansión negativa = esquinas recortadas) */
+    0 -8px 0 -4px var(--ink),
+    0 12px 0 -4px var(--ink),
+    -8px 0 0 -4px var(--ink),
+     8px 0 0 -4px var(--ink);
+
+  /* Transiciones también "a pasos" para que se sientan pixeladas */
+  transition:transform .12s steps(3), filter .12s steps(2);
+  animation:idle 2.6s steps(6) infinite; /* flotación constante */
+  -webkit-tap-highlight-color:transparent; /* quita el destello azul al tocar en móvil */
+}
+
+/* Variantes de color: solo cambian las dos variables */
+.bal.red{--c:var(--red);--d:var(--red-d)}
+.bal.orange{--c:var(--orange);--d:var(--orange-d)}
+.bal.green{--c:var(--green);--d:var(--green-d)}
+
+/* Retrasos distintos para que no floten todos sincronizados */
+.row .bal:nth-child(2){animation-delay:-.9s}
+.row .bal:nth-child(3){animation-delay:-1.7s}
+
+/* ---------- Franja de brillo (empieza invisible) ---------- */
+.bal::before{
+  content:"";position:absolute;
+  top:0;bottom:0;left:-30%;width:16%;  /* franja vertical fuera del botón a la izquierda */
+  background:rgba(255,255,255,.35);
+  transform:skewX(-20deg);             /* inclinada como un destello */
+  opacity:0;
+}
+
+/* ---------- HOVER (cursor encima) ---------- */
+.bal:hover{
+  animation:wobble .5s steps(8) infinite;            /* tiembla de lado a lado */
+  transform:translateY(-4px) scale(1.07);            /* sube y se agranda */
+  filter:brightness(1.12);                           /* un poco más brillante */
+  z-index:1;                                         /* pasa por encima de los vecinos */
+}
+.bal:hover::before{
+  opacity:1;
+  animation:shine .7s steps(7) infinite;             /* el brillo cruza el botón */
+}
+
+/* ---------- ACTIVE (mientras haces clic): se hunde ---------- */
+.bal:active{
+  animation:none;
+  transform:translateY(6px) scale(.97);
+  /* Se quita la base oscura: parece que el botón se aplasta contra la mesa */
+  box-shadow:
+    0 -4px 0 0 var(--c), 0 4px 0 0 var(--c), -4px 0 0 0 var(--c), 4px 0 0 0 var(--c),
+    0 -8px 0 -4px var(--ink), 0 8px 0 -4px var(--ink),
+    -8px 0 0 -4px var(--ink), 8px 0 0 -4px var(--ink);
+}
+
+/* Contorno punteado para quien navega con teclado (accesibilidad) */
+.bal:focus-visible{outline:4px dashed var(--cream);outline-offset:14px}
+
+/* Clase que agrega el JS al hacer clic: rebote de squish */
+.bal.pop{animation:pop .35s steps(5)}
+
+/* ============================================================
+   ANIMACIONES (@keyframes)
+   ============================================================ */
+/* Flotar en reposo: sube 4px y baja */
+@keyframes idle{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+/* Título subiendo y bajando */
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+/* Temblor en hover: rota -2.5°, vuelve, +2.5°, vuelve */
+@keyframes wobble{
+  0%,100%{transform:translateY(-4px) scale(1.07) rotate(0)}
+  25%    {transform:translateY(-4px) scale(1.07) rotate(-2.5deg)}
+  75%    {transform:translateY(-4px) scale(1.07) rotate(2.5deg)}
+}
+/* El brillo viaja de izquierda a derecha */
+@keyframes shine{from{left:-30%}to{left:130%}}
+/* Rebote al clic: se estira alto, luego ancho, y se asienta */
+@keyframes pop{
+  0%  {transform:scale(.9,1.12)}
+  40% {transform:scale(1.14,.9)}
+  70% {transform:scale(.96,1.04)}
+  100%{transform:scale(1)}
+}
+
+/* Cuadraditos de las partículas (los crea el JS) */
+.px{position:fixed;width:10px;height:10px;z-index:5;pointer-events:none}
+
+.hint{font-size:16px;opacity:.75;text-shadow:0 2px 0 var(--ink);text-align:center}
+
+/* Si el usuario pidió "reducir movimiento" en su sistema, apaga las animaciones */
+@media (prefers-reduced-motion:reduce){
+  .bg,.bal,h1{animation:none!important}
+  .bal:hover{animation:none!important}
+}
+</style>
+</head>
+
+<body>
+<!-- Capa de fondo con el remolino -->
+<div class="bg"></div>
+<!-- Capa de líneas CRT -->
+<div class="scan"></div>
+
+<main class="panel">
+  <h1>¡Elige tu jugada!</h1>
+
+  <div class="row">
+    <!-- Sin clase extra = azul. Agrega red / orange / green para cambiar de color -->
+    <button class="bal">Jugar mano</button>
+    <button class="bal red">Descartar</button>
+    <button class="bal orange">Siguiente</button>
+  </div>
+
+  <button class="bal green">Ir a la tienda</button>
+  <p class="hint">Pasa el cursor y haz clic</p>
+</main>
+
+<script>
+// Colores de las partículas según el botón
+const colors={blue:'#009dff',red:'#fe5f55',orange:'#ff9a00',green:'#4bc292'};
+
+// Para cada botón .bal de la página:
+document.querySelectorAll('.bal').forEach(b=>{
+  b.addEventListener('click',e=>{
+
+    // --- Rebote ---
+    b.classList.remove('pop');   // quita la clase por si ya estaba
+    void b.offsetWidth;          // truco: obliga al navegador a "reiniciar" la animación
+    b.classList.add('pop');      // la vuelve a poner → se reproduce otra vez
+
+    // --- Detectar de qué color es el botón ---
+    const key=['red','orange','green'].find(k=>b.classList.contains(k))||'blue';
+
+    // --- Posición del clic (si fue con teclado, usa el centro del botón) ---
+    const r=b.getBoundingClientRect();
+    const cx=e.clientX||r.left+r.width/2, cy=e.clientY||r.top+r.height/2;
+
+    // --- Crear 14 partículas ---
+    for(let i=0;i<14;i++){
+      const p=document.createElement('div');
+      p.className='px';
+      // 2 de cada 3 del color del botón, la otra crema
+      p.style.background=i%3?colors[key]:'#f1e9d6';
+      p.style.left=cx+'px';p.style.top=cy+'px';
+      document.body.appendChild(p);
+
+      // Dirección aleatoria (ángulo) y distancia entre 50 y 120px
+      const a=Math.random()*Math.PI*2, d=50+Math.random()*70;
+
+      // Animación: sale disparada hacia arriba y luego cae mientras se desvanece
+      p.animate([
+        {transform:'translate(0,0)',opacity:1},
+        {transform:`translate(${Math.cos(a)*d}px,${Math.sin(a)*d-30}px)`,opacity:1,offset:.6},
+        {transform:`translate(${Math.cos(a)*d}px,${Math.sin(a)*d+40}px)`,opacity:0}
+      ],{duration:600,easing:'steps(8)'})   // steps = movimiento entrecortado
+       .onfinish=()=>p.remove();            // se borra al terminar
+    }
+  });
+});
+</script>
+</body>
+</html>

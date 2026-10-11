@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" type="image/png" href="/static/img/logo.png">
+<!-- Hace que la pagina se vea bien en celulares; viewport-fit=cover usa toda la pantalla -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Menu admin</title>
+
+<!-- Fuente pixelada de Google Fonts (parecida a la de Balatro) -->
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;700&display=swap" rel="stylesheet">
+
+<style>
+/* Lista de reservas dentro del panel */
+.lista-reservas {
+    display: grid;
+    grid-template-columns: repeat(
+        auto-fill,
+        minmax(220px, 1fr)
+    );
+    gap: 20px;
+}
+
+.reserva-item {
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.45);
+    border: 3px solid var(--cream);
+    box-shadow: 4px 4px 0 var(--ink);
+}
+
+.reserva-item h3 {
+    margin-top: 0;
+    color: var(--orange);
+}
+
+ h3 {
+    margin-top: 0;
+    color: var(--orange);
+}
+
+.reserva-item p {
+    font-size: 17px;
+    overflow-wrap: anywhere;
+}
+
+
+
+
+/* ============================================================
+   CAJA PIXELADA REUTILIZABLE (.pixbox)
+   Capa 1: el elemento, con fondo oscuro = el BORDE
+   Capa 2: ::before, 4px más chico, con el color = el RELLENO
+   Las dos tienen esquinas en escalón (mismo truco que tus botones)
+   ============================================================ */
+.pixbox{
+  --bg:var(--rojo-claro);        /* color del relleno */
+  --esq-out:polygon(
+    0 12px, 4px 12px, 4px 8px, 8px 8px, 8px 4px, 12px 4px, 12px 0,
+    calc(100% - 12px) 0, calc(100% - 12px) 4px, calc(100% - 8px) 4px, calc(100% - 8px) 8px, calc(100% - 4px) 8px, calc(100% - 4px) 12px, 100% 12px,
+    100% calc(100% - 12px), calc(100% - 4px) calc(100% - 12px), calc(100% - 4px) calc(100% - 8px), calc(100% - 8px) calc(100% - 8px), calc(100% - 8px) calc(100% - 4px), calc(100% - 12px) calc(100% - 4px), calc(100% - 12px) 100%,
+    12px 100%, 12px calc(100% - 4px), 8px calc(100% - 4px), 8px calc(100% - 8px), 4px calc(100% - 8px), 4px calc(100% - 12px), 0 calc(100% - 12px)
+  );
+  --esq-in:polygon(
+    0 8px, 4px 8px, 4px 4px, 8px 4px, 8px 0,
+    calc(100% - 8px) 0, calc(100% - 8px) 4px, calc(100% - 4px) 4px, calc(100% - 4px) 8px, 100% 8px,
+    100% calc(100% - 8px), calc(100% - 4px) calc(100% - 8px), calc(100% - 4px) calc(100% - 4px), calc(100% - 8px) calc(100% - 4px), calc(100% - 8px) 100%,
+    8px 100%, 8px calc(100% - 4px), 4px calc(100% - 4px), 4px calc(100% - 8px), 0 calc(100% - 8px)
+  );
+
+  position:relative;
+  isolation:isolate;             /* el relleno (z-index:-1) queda detrás del texto, pero delante del borde */
+  background:var(--ink);         /* borde oscuro */
+  clip-path:var(--esq-out);
+}
+.pixbox::before{
+  content:"";position:absolute;inset:4px;z-index:-1;
+  background:
+    linear-gradient(rgba(255,255,255,.25) 0 4px, transparent 4px),     /* reflejo arriba */
+    linear-gradient(to top, rgba(0,0,0,.22) 0 4px, transparent 4px),   /* sombra abajo */
+    var(--bg);
+  clip-path:var(--esq-in);
+}
+
+/* ============================================================
+   LAYOUT A PANTALLA COMPLETA
+   [          HEADER (ancho completo)          ]
+   [ BARRA  ][          CONTENIDO              ]
+   ============================================================ */
+.panel{
+  position:relative;z-index:2;
+  width:100%;height:100%;        /* ocupa toda la pantalla */
+  display:flex;flex-direction:column;
+  gap:16px;
+  padding:16px;                  /* margen respecto al borde de la pantalla */
+  /* sin align-items:center → así el header se estira a todo el ancho */
+}
+
+/* ---------- HEADER ---------- */
+.header{
+  flex-shrink:0;                 /* nunca se aplasta */
+  padding:16px 28px;
+}
+.header h1{
+  text-align:left;
+  font-size:clamp(22px,4vw,34px);
+  text-shadow:0 3px 0 var(--ink);
+  -webkit-font-smoothing:none;   /* letras sin suavizado = más pixel */
+  animation:none;                /* quita esta línea si quieres que el título siga subiendo y bajando */
+}
+
+/* ---------- ZONA DE ABAJO: barra + contenido ---------- */
+.app{
+  flex:1;                        /* toma TODO el alto que sobra debajo del header */
+  display:flex;
+  gap:16px;
+  min-height:0;                  /* necesario para que .contenido pueda hacer scroll por dentro */
+}
+
+/* ---------- BARRA LATERAL ---------- */
+.sidebar{
+  width:clamp(190px,24vw,280px);
+  flex-shrink:0;
+  display:flex;flex-direction:column;
+  gap:14px;
+  padding:24px 18px;
+}
+/* Los enlaces usan tus botones .bal, en versión más chica y a todo el ancho */
+.sidebar .bal{
+  width:100%;margin:0;text-align:center;
+  font-size:20px;
+  padding:calc(14px + var(--sink)) 12px calc(22px - var(--sink));
+}
+.sidebar .bal:last-child{margin-top:auto}      /* "Cerrar sesión" se va al fondo de la barra */
+.sidebar .bal:nth-child(2){animation-delay:-.9s}   /* para que no floten todos a la vez */
+.sidebar .bal:nth-child(3){animation-delay:-1.7s}
+
+.bal.blue{--c:var(--blue);--d:var(--blue-d)}   /* variante que faltaba */
+
+/* ---------- CONTENIDO (marco blanco pixelado, como el formulario) ---------- */
+.contenido{
+  flex:1;
+  max-width: 1200px;
+  min-width:1200px;min-height:0;
+  overflow-y:auto;overflow-x:hidden;           /* si hay mucha información, hace scroll aquí */
+  margin:4px;                                   /* espacio para que se vea el borde blanco */
+  padding:24px;
+  background:rgba(0,0,0,.6);
+  box-shadow:
+    0 -4px 0 0 #fff, 0 4px 0 0 #fff,
+    -4px 0 0 0 #fff,  4px 0 0 0 #fff;
+  scrollbar-color:var(--rojo-claro) rgba(0,0,0,.4);
+}
+.contenido h2{margin:0 0 16px;text-shadow:0 3px 0 var(--ink)}
+.contenido p{font-size:20px}
+
+/* En pantallas angostas la barra pasa arriba, en fila */
+@media (max-width:700px){
+  .app{flex-direction:column}
+  .sidebar{width:100%;flex-direction:row;flex-wrap:wrap;padding:14px}
+  .sidebar .bal{width:auto;flex:1 1 120px}
+
+  .sidebar .bal:last-child{margin-top:0}
+}
+
+
+.marco .bal{display:block;margin:28px auto 8px}
+
+
+  
+/* Activa la transición automática entre páginas del mismo sitio */
+@view-transition{ navigation:auto; }
+
+/* Por defecto el navegador ya hace un crossfade:
+   la página vieja baja a opacidad 0 y la nueva sube a 1 AL MISMO TIEMPO.
+   Aquí solo ajustamos duración y ritmo. */
+::view-transition-old(root),
+::view-transition-new(root){
+  animation-duration:.1s;               /* más largo = más lento */
+  animation-timing-function:steps(6);   /* a saltos, estilo pixel. Quita esta línea para un fundido suave */
+}
+
+/* El fondo pixelado son iguales en todas las páginas.
+   Con un nombre propio quedan fijos y NO se desvanecen:
+   solo cambia el contenido de encima. */
+#bg   { view-transition-name:fondo; }
+
+
+/* ============================================================
+   VARIABLES DE COLOR
+   Cada botón tiene un color principal (-) y uno oscuro (-d) para
+   la sombra/base 3D. Cambia estos valores para otros colores.
+   ============================================================ */
+:root{
+      --felt-dark:#123b30;
+  --ink:#1b1626;
+  --cream:#f1e9d6;
+  --rojo-claro:#009dff;          /* rojo un poco claro para header y barra */
+
+
+  --blue:#009dff;   --blue-d:#0064a8;     /* botón azul */
+  --red:#fe5f55;    --red-d:#a83a32;      /* botón rojo */
+  --orange:#ff9a00; --orange-d:#a8650a;   /* botón naranja */
+  --green:#4bc292;  --green-d:#26795a;    /* botón verde */
+
+  box-sizing:border-box;
+  /* Deja espacio en celulares con notch (la "muesca" de la cámara) */
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+/* El padding no hace crecer los elementos (más fácil de calcular tamaños) */
+*,*::before,*::after{box-sizing:inherit}
+
+html,body{height:100%;margin:0}
+
+body{
+  background:var(--felt-dark);
+  font-family:'Pixelify Sans','Courier New',monospace;
+  color:var(--cream);
+  overflow:hidden;               /* la página no hace scroll: el scroll va dentro de .contenido */
+}
+
+/* ============================================================
+   FONDO PIXELADO: un canvas pequeño estirado a pantalla completa
+   ============================================================ */
+#bg{
+  position:fixed;inset:0;             /* ocupa toda la pantalla */
+  width:100%;height:100%;
+  z-index:0;                          /* detrás de todo */
+  image-rendering:pixelated;          /* al agrandar, NO suaviza: se ven los píxeles cuadrados */
+  image-rendering:crisp-edges;        /* mismo efecto, para Firefox */
+}
+
+/* ============================================================
+   CONTENEDOR Y TÍTULO
+   ============================================================ */
+.panel{
+  position:relative;z-index:2;        /* por encima del fondo */
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:20px;
+  padding:24px;
+  max-width:100%;
+}
+h1{
+  margin:0;
+  font-size:clamp(28px,7vw,44px);     /* tamaño que se adapta a la pantalla (mín, ideal, máx) */
+  font-weight:700;text-align:center;
+  text-shadow:0 4px 0 var(--ink);     /* sombra sólida hacia abajo, sin difuminar = look pixel */
+  animation:bob 2.4s steps(6) infinite; /* el título sube y baja */
+}
+.row{display:flex;gap:28px;flex-wrap:wrap;justify-content:center}
+
+/* ============================================================
+   VARIABLE ANIMABLE: cuánto se hunde la cara del botón
+   @property permite que el navegador anime esta variable
+   (sin esto, el cambio sería instantáneo, aunque también funciona)
+   ============================================================ */
+@property --sink{
+  syntax:'<length>';     /* la variable es una medida en px */
+  inherits:false;
+  initial-value:0px;     /* 0 = botón levantado */
+}
+
+/* ============================================================
+   EL BOTÓN (.bal): 3 capas apiladas
+
+     [botón]    → contorno NEGRO (su propio fondo)
+     [::before] → BASE oscura (el "grosor" del botón)
+     [::after]  → CARA de color (la que se hunde)
+     [texto]    → encima de todo
+   ============================================================ */
+.bal{
+        text-decoration: none;
+  --c:var(--red);--d:var(--red-d);   /* color de cara y color de base */
+  --sink:0px;                           /* cuánto está hundido (0, 4px u 8px) */
+
+  /* FORMAS PIXELADAS: esquinas en escalones de 4px.
+     Se guardan en variables para reutilizarlas en cada capa.
+     Los % se calculan sobre el tamaño de CADA capa, así que sirven para todas. */
+
+  /* Contorno exterior: esquina de 3 escalones (12px) */
+  --outer:polygon(
+    0 12px, 4px 12px, 4px 8px, 8px 8px, 8px 4px, 12px 4px, 12px 0,
+    calc(100% - 12px) 0, calc(100% - 12px) 4px, calc(100% - 8px) 4px, calc(100% - 8px) 8px, calc(100% - 4px) 8px, calc(100% - 4px) 12px, 100% 12px,
+    100% calc(100% - 12px), calc(100% - 4px) calc(100% - 12px), calc(100% - 4px) calc(100% - 8px), calc(100% - 8px) calc(100% - 8px), calc(100% - 8px) calc(100% - 4px), calc(100% - 12px) calc(100% - 4px), calc(100% - 12px) 100%,
+    12px 100%, 12px calc(100% - 4px), 8px calc(100% - 4px), 8px calc(100% - 8px), 4px calc(100% - 8px), 4px calc(100% - 12px), 0 calc(100% - 12px)
+  );
+  /* Capas interiores (base y cara): esquina de 2 escalones (8px) */
+  --inner:polygon(
+    0 8px, 4px 8px, 4px 4px, 8px 4px, 8px 0,
+    calc(100% - 8px) 0, calc(100% - 8px) 4px, calc(100% - 4px) 4px, calc(100% - 4px) 8px, 100% 8px,
+    100% calc(100% - 8px), calc(100% - 4px) calc(100% - 8px), calc(100% - 4px) calc(100% - 4px), calc(100% - 8px) calc(100% - 4px), calc(100% - 8px) 100%,
+    8px 100%, 8px calc(100% - 4px), 4px calc(100% - 4px), 4px calc(100% - 8px), 0 calc(100% - 8px)
+  );
+
+  position:relative;
+  isolation:isolate;                    /* hace que las capas con z-index:-1 queden DETRÁS del texto pero DELANTE del fondo negro */
+  border:0;cursor:pointer;
+  background:var(--ink);                /* el fondo del botón es el CONTORNO negro */
+  clip-path:var(--outer);               /* recorta el contorno con esquinas pixeladas */
+
+  /* Texto: letra pixelada, sin suavizado, con sombra dura */
+  font:700 clamp(20px,5vw,28px)/1 'Pixelify Sans','Courier New',monospace;
+  -webkit-font-smoothing:none;          /* letras sin antialiasing = bordes más "pixel" */
+  color:#fff;letter-spacing:1px;
+  text-shadow:0 4px 0 var(--d);
+
+  /* El padding deja espacio al contorno (4px), la cara y la base (8px).
+     Al hundirse, el texto baja: se suma --sink arriba y se resta abajo. */
+  padding:calc(20px + var(--sink)) 38px calc(28px - var(--sink));
+  margin:8px;
+
+  transition:--sink .12s steps(2), filter .12s steps(2);  /* el hundimiento va "a pasos" */
+  animation:idle 2.6s steps(6) infinite;
+  -webkit-tap-highlight-color:transparent;
+}
+
+/* ---------- CAPA 2: BASE OSCURA (el grosor del botón) ---------- */
+.bal::before{
+  content:"";position:absolute;z-index:-1;
+  inset:4px;                            /* 4px de margen = deja ver el contorno negro */
+  background:var(--d);                  /* color oscuro */
+  clip-path:var(--inner);
+}
+
+/* ---------- CAPA 3: CARA DE COLOR (la que se hunde) ---------- */
+.bal::after{
+  content:"";position:absolute;z-index:-1;
+  /* arriba: 4px + hundimiento | abajo: 12px - hundimiento
+     → sin hundir se ven 8px de base; con --sink:8px la cara la tapa por completo */
+  inset:calc(4px + var(--sink)) 4px calc(12px - var(--sink)) 4px;
+  /* Franja clara de 4px arriba (reflejo pixelado) sobre el color de la cara */
+  background:linear-gradient(rgba(255,255,255,.28) 0 4px, transparent 4px), var(--c);
+  clip-path:var(--inner);
+}
+
+/* Variantes de color: solo cambian las dos variables */
+.bal.red{--c:var(--red);--d:var(--red-d)}
+.bal.orange{--c:var(--orange);--d:var(--orange-d)}
+.bal.green{--c:var(--green);--d:var(--green-d)}
+
+/* Retrasos para que no floten todos sincronizados */
+.row .bal:nth-child(2){animation-delay:-.9s}
+.row .bal:nth-child(3){animation-delay:-1.7s}
+
+/* ============================================================
+   HOVER Y CLIC: ahora el botón se HUNDE en vez de temblar
+   ============================================================ */
+.bal:hover{
+  --sink:4px;                           /* a medio hundir */
+  filter:brightness(1.12);
+  animation:none;                       /* deja de flotar mientras lo tocas */
+}
+.bal:active{
+  --sink:8px;                           /* hundido del todo: la cara tapa la base */
+  filter:brightness(.95);
+}
+/* El contorno de foco normal se recortaría con clip-path, así que el teclado usa el mismo hundimiento */
+.bal:focus-visible{--sink:4px;filter:brightness(1.2);outline:none}
+
+/* Rebote al hacer clic (lo activa el JS con la clase .pop) */
+.bal.pop{animation:pop .35s steps(5)}
+
+
+/* ============================================================
+   ANIMACIONES (@keyframes)
+   ============================================================ */
+/* Flotar en reposo: sube 4px y baja */
+@keyframes idle{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+/* Título subiendo y bajando */
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+/* Temblor en hover: rota -2.5°, vuelve, +2.5°, vuelve */
+@keyframes wobble{
+  0%,100%{transform:translateY(-4px) scale(1.07) rotate(0)}
+  25%    {transform:translateY(-4px) scale(1.07) rotate(-2.5deg)}
+  75%    {transform:translateY(-4px) scale(1.07) rotate(2.5deg)}
+}
+/* El brillo viaja de izquierda a derecha */
+@keyframes shine{from{left:-30%}to{left:130%}}
+/* Rebote al clic: se estira alto, luego ancho, y se asienta */
+@keyframes pop{
+  0%  {transform:scale(.9,1.12)}
+  40% {transform:scale(1.14,.9)}
+  70% {transform:scale(.96,1.04)}
+  100%{transform:scale(1)}
+}
+
+/* Cuadraditos de las partículas (los crea el JS) */
+.px{position:fixed;width:10px;height:10px;z-index:5;pointer-events:none}
+
+.hint{font-size:20px;opacity:.75;text-shadow:0 2px 0 var(--ink);text-align:center}
+
+/* Si el usuario pidió "reducir movimiento" en su sistema, apaga las animaciones */
+@media (prefers-reduced-motion:reduce){
+  .bg,.bal,h1{animation:none!important}
+  .bal:hover{animation:none!important}
+}
+</style>
+
+
+</head>
+<body>
+<!-- Capa de fondo con el remolino -->
+<canvas id="bg"></canvas>
+
+<main class="panel">
+
+  <header class="header pixbox">
+    <h1>Hola, {{ g.usuario['nombre'] }}</h1>
+  </header>
+
+  <div class="app">
+
+    <aside class="sidebar pixbox">
+      <button type="button" class="bal red" id="btn-reservas">Ver reservas</button>
+
+      <button type="button" class="bal red" id="btn-cuentas">Ver cuentas</button>
+
+      <button type="button" class="bal blue" id="btn-clientes"> Ver clientes</button>
+      <button type="button" class="bal orange" id="btn-admins">Ver administradores</button>
+
+     <a class="bal green" href="{{ url_for('admin_registrar') }}">Registrar usuario</a>
+      <a class="bal orange" href="{{ url_for('logout') }}">Cerrar sesión</a>
+    </aside>
+
+<section class="contenido"
+    data-clientes="{{ url_for('admin_verclientes') }}"
+    data-reservas="{{ url_for('admin_verreservas1') }}"
+    data-admins="{{ url_for('admin_veradmins') }}"
+    data-eliminaradmins="{{ url_for('admin_eliminaradmins') }}"
+    data-cuentas="{{ url_for('admin_cuentas') }}"
+    data-cuentaseliminar="{{ url_for('admin_liquidar_cuenta') }}"
+    data-eliminar="{{ url_for('admin_eliminar_cliente') }}">
+
+</section>
+  </div>
+</main>
+
+<script>
+// Colores de las partículas según el botón
+const colors={blue:'#009dff',red:'#fe5f55',orange:'#ff9a00',green:'#4bc292'};
+
+// Para cada botón .bal de la página:
+document.querySelectorAll('.bal').forEach(b=>{
+  b.addEventListener('click',e=>{
+
+    // --- Rebote ---
+    b.classList.remove('pop');   // quita la clase por si ya estaba
+    void b.offsetWidth;          // truco: obliga al navegador a "reiniciar" la animación
+    b.classList.add('pop');      // la vuelve a poner → se reproduce otra vez
+
+    // --- Detectar de qué color es el botón ---
+    const key=['red','orange','green'].find(k=>b.classList.contains(k))||'blue';
+
+    // --- Posición del clic (si fue con teclado, usa el centro del botón) ---
+    const r=b.getBoundingClientRect();
+    const cx=e.clientX||r.left+r.width/2, cy=e.clientY||r.top+r.height/2;
+
+    // --- Crear 14 partículas ---
+    for(let i=0;i<14;i++){
+      const p=document.createElement('div');
+      p.className='px';
+      // 2 de cada 3 del color del botón, la otra crema
+      p.style.background=i%3?colors[key]:'#f1e9d6';
+      p.style.left=cx+'px';p.style.top=cy+'px';
+      document.body.appendChild(p);
+
+      // Dirección aleatoria (ángulo) y distancia entre 50 y 120px
+      const a=Math.random()*Math.PI*2, d=50+Math.random()*70;
+
+      // Animación: sale disparada hacia arriba y luego cae mientras se desvanece
+      p.animate([
+        {transform:'translate(0,0)',opacity:1},
+        {transform:`translate(${Math.cos(a)*d}px,${Math.sin(a)*d-30}px)`,opacity:1,offset:.6},
+        {transform:`translate(${Math.cos(a)*d}px,${Math.sin(a)*d+40}px)`,opacity:0}
+      ],{duration:600,easing:'steps(8)'})   // steps = movimiento entrecortado
+       .onfinish=()=>p.remove();            // se borra al terminar
+    }
+  });
+});
+
+/* ============================================================
+   REMOLINO PIXELADO
+   Se calcula el color de cada píxel en un canvas diminuto.
+   ============================================================ */
+const cv  = document.getElementById('bg');
+const ctx = cv.getContext('2d');
+
+// Paleta de verdes del tapete (RGB). Agrega o quita colores para cambiar el estilo.
+const PAL = [
+[31, 31, 92],    // azul medio
+[26, 26, 80],    // azul oscuro
+[38, 38, 108],   // azul claro
+[21, 21, 68]     // azul muy oscuro
+];
+
+const RES    = 160;   // ancho en "píxeles gordos": menos = más pixelado (prueba 96 o 240)
+const ARMS   = 5;     // cuántos brazos tiene el remolino
+const TWIST  = 3.2;   // qué tan enroscado está (más alto = espiral más cerrada)
+const SPEED  = 0.06;  // velocidad de giro
+const FPS    = 12;    // fotogramas por segundo: bajo = movimiento entrecortado retro
+
+let img;              // buffer de píxeles que vamos rellenando
+
+// El canvas mantiene la proporción de la pantalla pero con muy pocos píxeles
+function resize(){
+  cv.width  = RES;
+  cv.height = Math.max(1, Math.round(RES * innerHeight / innerWidth));
+  img = ctx.createImageData(cv.width, cv.height);
+}
+
+function draw(ms){
+  const w = cv.width, h = cv.height;
+  const t = ms / 1000;                          // tiempo en segundos
+  const maxR = Math.hypot(w, h) / 2;            // distancia del centro a una esquina
+  const d = img.data;
+
+  for(let y = 0; y < h; y++){
+    for(let x = 0; x < w; x++){
+      // Posición del píxel respecto al centro, en coordenadas polares
+      const dx = x - w / 2, dy = y - h / 2;
+      const r  = Math.hypot(dx, dy) / maxR;     // distancia al centro (0 a 1)
+      const a  = Math.atan2(dy, dx);            // ángulo (-π a π)
+
+      // Valor que dibuja la espiral:
+      //   ángulo → crea los brazos
+      //   r*TWIST → los enrosca según la distancia
+      //   -t*SPEED → los hace girar con el tiempo
+      //   sin(...) → les da una ondulación, como pintura revuelta
+      let v = a / (Math.PI * 2) * ARMS + r * TWIST - t * SPEED
+              + 0.12 * Math.sin(r * 9 - t * 0.8);
+      v -= Math.floor(v);                       // nos quedamos con 0 a 1
+
+      // Cortamos el valor en bandas: cada banda es un color de la paleta
+      const col = PAL[Math.floor(v * PAL.length)];
+
+      // Viñeta pixelada: los bordes se oscurecen en 4 escalones (no suave)
+      const dark = 1 - Math.min(1, Math.max(0, (r - 0.45) * 1.4));
+      const f = 0.35 + 0.65 * (Math.floor(dark * 4) / 4);
+
+      const i = (y * w + x) * 4;
+      d[i]   = col[0] * f;
+      d[i+1] = col[1] * f;
+      d[i+2] = col[2] * f;
+      d[i+3] = 255;                             // opaco
+    }
+  }
+  ctx.putImageData(img, 0, 0);                  // pinta el resultado en el canvas
+}
+
+// Bucle de animación limitado a FPS fotogramas por segundo
+let last = 0;
+function loop(now){
+  if(now - last > 1000 / FPS){ draw(now); last = now; }
+  requestAnimationFrame(loop);
+}
+
+resize();
+addEventListener('resize', ()=>{ resize(); draw(performance.now()); });
+
+// Si el usuario pidió "reducir movimiento", se dibuja una sola vez y no se anima
+if(matchMedia('(prefers-reduced-motion: reduce)').matches) draw(0);
+else requestAnimationFrame(loop);
+
+
+
+
+const contenido = document.querySelector('.contenido');
+
+// ============ MOSTRAR CLIENTES (ADMIN) ============
+async function mostrarClientes() {
+    contenido.innerHTML = `
+        <h2>Clientes registrados</h2>
+        <p>Cargando clientes...</p>
+    `;
+
+    try {
+        const resp = await fetch('/admin/menu/verclientes');
+
+        if (!resp.ok) {
+            throw new Error('HTTP ' + resp.status);
+        }
+
+        const clientes = await resp.json();
+
+        contenido.innerHTML = '<h2>Clientes registrados</h2><h3>Advertencia: Eliminar el cliente llevara a eliminar todas sus reservas y sus cuentas sin liquidar</h3>';
+
+        if (clientes.length === 0) {
+            contenido.insertAdjacentHTML(
+                'beforeend',
+                '<p>No hay clientes registrados.</p>'
+            );
+            return;
+        }
+
+        const lista = document.createElement('div');
+        lista.className = 'lista-reservas';
+
+        clientes.forEach(c => {
+            const elemento = document.createElement('div');
+            elemento.className = 'reserva-item';
+
+            const nombre = document.createElement('h3');
+            nombre.textContent = c.nombre;
+
+            const email = document.createElement('p');
+            email.textContent = `Correo: ${c.email}`;
+
+            const rol = document.createElement('p');
+            rol.textContent = `Rol: ${c.rol}`;
+
+
+            //BOTON PARA ELIMINAR CLIENTE
+            const botonEliminar = document.createElement('button');
+
+            botonEliminar.type = 'button';
+            botonEliminar.className = 'bal red';
+            botonEliminar.textContent = 'Eliminar';
+
+            botonEliminar.addEventListener('click', () => {
+                eliminarCliente(c.id);
+          });
+
+          botonEliminar.addEventListener('click', async () => {
+    if (!confirm(`¿Seguro que deseas eliminar a ${c.nombre}?`)) {
+        return;
+    }
+
+    try {
+        const resp = await fetch(contenido.dataset.eliminar, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ id: c.id })
+        });
+
+        const resultado = await resp.json();
+
+        if (!resp.ok) {
+            throw new Error(resultado.mensaje || 'No se pudo eliminar');
+        }
+
+        alert(resultado.mensaje);
+
+        // Volver a cargar la lista actualizada.
+        mostrarClientes();
+
+    } catch (err) {
+        console.error(err);
+        alert(err.message || 'Error al eliminar el cliente');
+    }
+});
+
+
+
+            elemento.append(nombre, email, rol, botonEliminar);
+            lista.appendChild(elemento);
+
+
+        });
+
+        contenido.appendChild(lista);
+
+    } catch (err) {
+        console.error(err);
+
+        contenido.innerHTML = `
+            <h2>Clientes registrados</h2>
+            <p>No se pudieron cargar los clientes.</p>
+        `;
+    }
+}
+
+
+// ============ MOSTRAR RESERVAS ============
+async function mostrarReservas() {
+    contenido.classList.remove('con-mesas');
+
+    contenido.innerHTML = `
+        <h2>Reservas</h2>
+        <p>Cargando reservas...</p>
+    `;
+
+    try {
+        const resp = await fetch("/admin/menu/verreservas");
+
+        if (!resp.ok) {
+            throw new Error('HTTP ' + resp.status);
+        }
+
+        const reservas = await resp.json();
+
+        contenido.innerHTML = '<h2> Reservas</h2><h3>Advertencia: Una vez liquidada la cuenta asociada a esta reserva, esta ultima tmabien se borra</h3>';
+
+        if (reservas.length === 0) {
+            contenido.insertAdjacentHTML(
+                'beforeend',
+                '<p>No tienes reservas registradas.</p>'
+            );
+            return;
+        }
+
+        const lista = document.createElement('div');
+        lista.className = 'lista-reservas';
+
+        reservas.forEach(r => {
+            const elemento = document.createElement('div');
+            elemento.className = 'reserva-item';
+
+            elemento.innerHTML = `
+                <h3>Reserva #${r.reserva_id}</h3>
+                <p><strong>Mesa:</strong> ${r.numero_mesa}</p>
+                <p><strong>Personas:</strong> ${r.cantidad_personas}</p>
+                <p><strong>Fecha:</strong> ${r.fecha}</p>
+                <p><strong>Hora:</strong> ${r.hora_inicio}</p>
+                <p><strong>A nombre de:</strong> ${r.nombre_usuario}</p>
+            `;
+
+            lista.appendChild(elemento);
+        });
+
+        contenido.appendChild(lista);
+
+    } catch (err) {
+        console.error(err);
+        contenido.innerHTML = `
+            <h2>Mis reservas</h2>
+            <p>No se pudieron cargar las reservas.</p>
+        `;
+    }
+}
+
+
+
+const contenido1 = document.querySelector('.contenido');
+
+// ============ MOSTRAR ADMINS (ADMIN) ============
+async function mostrarAdmins() {
+    contenido1.innerHTML = `
+        <h2>Admins registrados</h2>
+        <p>Cargando admins...</p>
+    `;
+
+    try {
+        const resp = await fetch('/admin/menu/veradmins');
+
+        if (!resp.ok) {
+            throw new Error('HTTP ' + resp.status);
+        }
+
+        const admins = await resp.json();
+
+        contenido1.innerHTML = '<h2>Admins registrados</h2>';
+
+        if (admins.length === 0) {
+            contenido1.insertAdjacentHTML(
+                'beforeend',
+                '<p>No hay admins registrados.</p>'
+            );
+            return;
+        }
+
+        const lista = document.createElement('div');
+        lista.className = 'lista-reservas';
+
+        admins.forEach(c => {
+            const elemento = document.createElement('div');
+            elemento.className = 'reserva-item';
+
+            const nombre = document.createElement('h3');
+            nombre.textContent = c.nombre;
+
+            const email = document.createElement('p');
+            email.textContent = `Correo: ${c.email}`;
+
+            const rol = document.createElement('p');
+            rol.textContent = `Rol: ${c.rol}`;
+
+            // BOTÓN PARA ELIMINAR ADMIN
+            const botonEliminarAdmin = document.createElement('button');
+
+            botonEliminarAdmin.type = 'button';
+            botonEliminarAdmin.className = 'bal red';
+            botonEliminarAdmin.textContent = 'Eliminar';
+
+            botonEliminarAdmin.addEventListener('click', async () => {
+                if (!confirm(`¿Seguro que deseas eliminar a ${c.nombre}?`)) {
+                    return;
+                }
+
+                try {
+                    const respuesta = await fetch('/admin/menu/eliminaradmin', {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ id: c.id })
+                    });
+
+                    const resultado = await respuesta.json();
+
+                    if (!respuesta.ok) {
+                        throw new Error(
+                            resultado.mensaje || 'No se pudo eliminar el admin'
+                        );
+                    }
+
+                    alert(resultado.mensaje);
+
+                    // Recargar la lista actualizada
+                    await mostrarAdmins();
+
+                } catch (err) {
+                    console.error(err);
+                    alert(err.message || 'Error al eliminar el admin');
+                }
+            });
+
+            elemento.append(nombre, email, rol, botonEliminarAdmin);
+            lista.appendChild(elemento);
+        });
+
+        contenido1.appendChild(lista);
+
+    } catch (err) {
+        console.error(err);
+
+        contenido1.innerHTML = `
+            <h2>Admins registrados</h2>
+            <p>No se pudieron cargar los admins.</p>
+        `;
+    }
+}
+
+
+const contenido2 = document.querySelector('.contenido');
+
+// ============ MOSTRAR CUENTAS (ADMIN) ============
+async function mostrarCuentas() {
+    contenido2.innerHTML = `
+        <h2>Cuentas registradas</h2>
+        <p>Cargando cuentas...</p>
+    `;
+
+    try {
+        const resp = await fetch('/admin/menu/vercuentas');
+
+        if (!resp.ok) {
+            throw new Error('HTTP ' + resp.status);
+        }
+
+        const cuentas = await resp.json();
+
+        contenido2.innerHTML = `
+            <h2>Cuentas registradas</h2>
+            <h3>Advertencia: Oprimir liquidar la cuenta hasta que se haya efectuado el pago</h3>
+        `;
+
+        if (cuentas.length === 0) {
+            contenido2.insertAdjacentHTML(
+                'beforeend',
+                '<p>No hay cuentas registradas.</p>'
+            );
+            return;
+        }
+
+        const lista = document.createElement('div');
+        lista.className = 'lista-reservas';
+
+        cuentas.forEach(c => {
+            const elemento = document.createElement('div');
+            elemento.className = 'reserva-item';
+
+            const titulo = document.createElement('h3');
+            titulo.textContent = `Cuenta #${c.cuenta_id}`;
+
+            const usuario = document.createElement('p');
+            usuario.textContent = `Cliente: ${c.nombre_usuario}`;
+
+            const email = document.createElement('p');
+            email.textContent = `Correo: ${c.email_usuario}`;
+
+            const mesa = document.createElement('p');
+            mesa.textContent = `Mesa: ${c.numero_mesa}`;
+
+            const fecha = document.createElement('p');
+            fecha.textContent = `Fecha: ${c.fecha_apertura}`;
+
+            const hora = document.createElement('p');
+            hora.textContent = `Hora: ${c.hora_apertura}`;
+
+            const total = document.createElement('p');
+            total.textContent =
+                `Total: $${Number(c.total).toLocaleString('es-CO')}`;
+
+            // BOTÓN PARA LIQUIDAR CUENTA
+            const botonLiquidar = document.createElement('button');
+
+            botonLiquidar.type = 'button';
+            botonLiquidar.className = 'bal red';
+            botonLiquidar.textContent = 'Liquidar';
+
+            botonLiquidar.addEventListener('click', async () => {
+                if (!confirm(
+                    `¿Seguro que deseas liquidar la cuenta #${c.cuenta_id} ` +
+                    `por $${Number(c.total).toLocaleString('es-CO')}?`
+                )) {
+                    return;
+                }
+
+                try {
+                    const respuesta = await fetch(
+                        '/admin/menu/liquidarcuenta',
+                        {
+                            method: 'DELETE',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                id: c.cuenta_id
+                            })
+                        }
+                    );
+
+                    const resultado = await respuesta.json();
+
+                    if (!respuesta.ok) {
+                        throw new Error(
+                            resultado.mensaje ||
+                            'No se pudo liquidar la cuenta'
+                        );
+                    }
+
+                    alert(resultado.mensaje);
+
+                    // Actualizar la lista de cuentas
+                    await mostrarCuentas();
+
+                } catch (err) {
+                    console.error(err);
+                    alert(err.message || 'Error al liquidar la cuenta');
+                }
+            });
+
+            elemento.append(
+                titulo,
+                usuario,
+                email,
+                mesa,
+                fecha,
+                hora,
+                total,
+                botonLiquidar
+            );
+
+            lista.appendChild(elemento);
+        });
+
+        contenido2.appendChild(lista);
+
+    } catch (err) {
+        console.error(err);
+
+        contenido2.innerHTML = `
+            <h2>Cuentas registradas</h2>
+            <p>No se pudieron cargar las cuentas.</p>
+        `;
+    }
+}
+
+
+
+
+
+
+
+
+
+//ESPACIO PARA EL LLAMADO A LOS BOTONES DE FUNCIONALIDAD
+document.getElementById('btn-clientes')
+    .addEventListener('click', mostrarClientes);
+
+
+document.getElementById('btn-reservas')
+    .addEventListener('click', mostrarReservas);
+
+document.getElementById('btn-admins')
+    .addEventListener('click', mostrarAdmins);
+
+document.getElementById('btn-cuentas')
+    .addEventListener('click', mostrarCuentas);
+    
+</script>
+</body>

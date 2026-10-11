@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<!-- Hace que la página se vea bien en celulares; viewport-fit=cover usa toda la pantalla -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cartas Balatro con drag</title>
+
+<!-- Fuente pixelada de Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;700&display=swap" rel="stylesheet">
+
+<style>
+/* ============================================================
+   VARIABLES DE COLOR Y BASE
+   ============================================================ */
+:root{
+  --felt-d:#123b30;     /* verde oscuro del fondo */
+  --ink:#1b1626;        /* casi negro: bordes y sombras */
+  --cream:#f4ecd8;      /* color del papel de la carta */
+  --red:#e8483f;        /* corazones y diamantes */
+  --blue:#2b6fb8;       /* carta azul */
+  box-sizing:border-box;
+  /* Deja espacio en celulares con notch */
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+*,*::before,*::after{box-sizing:inherit}
+html,body{height:100%;margin:0}
+
+body{
+  background:var(--felt-d);color:var(--cream);
+  overflow:hidden;                              /* sin barras de scroll */
+  font-family:'Pixelify Sans','Courier New',monospace;
+  display:flex;align-items:center;justify-content:center;
+  /* NUEVO: evita que se seleccione texto al arrastrar las cartas */
+  user-select:none;-webkit-user-select:none;
+}
+
+/* Fondo: remolino de franjas verdes que gira "a saltitos" (steps) */
+.bg{
+  position:fixed;inset:0;transform:scale(2.2);  /* más grande que la pantalla para que no se vean bordes */
+  background:repeating-conic-gradient(#1f5c4a 0 15deg,#1a5042 15deg 30deg);
+  animation:spin 50s steps(100) infinite;
+}
+/* Viñeta: oscurece los bordes */
+.bg::after{content:"";position:absolute;inset:0;background:radial-gradient(circle,transparent 20%,#0a1f19 75%)}
+@keyframes spin{to{transform:scale(2.2) rotate(360deg)}}
+
+/* Líneas de pantalla CRT encima de todo (z-index alto para que cubra incluso la carta arrastrada) */
+.scan{
+  position:fixed;inset:0;pointer-events:none;z-index:99;
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0 2px,transparent 2px 4px);
+}
+
+.table{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:40px;padding:20px;max-width:100%}
+h1{margin:0;font-size:clamp(26px,6vw,40px);text-shadow:0 4px 0 var(--ink);text-align:center}
+.hand{display:flex;gap:clamp(10px,3vw,30px);justify-content:center;flex-wrap:wrap}
+
+/* ============================================================
+   LA CARTA (.card) — contenedor exterior
+
+   Estas variables las modifica el JavaScript en cada fotograma:
+     --rx, --ry : inclinación en X e Y (grados)
+     --mx, --my : posición del cursor dentro de la carta (%)
+     --sc       : escala (tamaño)
+     --sx, --sy : desplazamiento de la sombra
+     --glow     : intensidad del brillo (0 = apagado, 1 = pleno)
+     --dx, --dy : NUEVO → cuánto se ha arrastrado la carta (px)
+   ============================================================ */
+.card{
+  --rx:0deg; --ry:0deg; --mx:50%; --my:50%;
+  --sc:1; --sx:0px; --sy:10px; --glow:0;
+  --dx:0px; --dy:0px;                           /* NUEVO */
+
+  position:relative;
+  width:clamp(120px,22vw,170px);                /* ancho adaptable */
+  aspect-ratio:5/7;                             /* proporción de carta de póker */
+  perspective:700px;                            /* clave del 3D: menor = inclinación más dramática */
+  touch-action:none;                            /* en móvil, el dedo arrastra la carta en vez de hacer scroll */
+
+  cursor:grab;                                  /* NUEVO: manito abierta al pasar el cursor */
+  /* NUEVO: mueve la carta ENTERA según lo arrastrado.
+     Se usa "transform" aquí porque la animación float usa la propiedad "translate",
+     así que no chocan entre sí. */
+  transform:translate(var(--dx),var(--dy));
+
+  animation:float 3s steps(6) infinite;         /* flotación constante en reposo */
+  -webkit-user-drag:none;                       /* evita el "fantasma" de arrastre del navegador */
+
+  /* FORMA PIXELADA: clip-path con esquinas en escalón, guardada en una variable
+     para reutilizarla en la sombra, el borde y la cara. */
+  --px:polygon(
+    0 12px, 6px 12px, 6px 6px, 12px 6px, 12px 0,
+    calc(100% - 12px) 0, calc(100% - 12px) 6px, calc(100% - 6px) 6px, calc(100% - 6px) 12px, 100% 12px,
+    100% calc(100% - 12px), calc(100% - 6px) calc(100% - 12px), calc(100% - 6px) calc(100% - 6px), calc(100% - 12px) calc(100% - 6px), calc(100% - 12px) 100%,
+    12px 100%, 12px calc(100% - 6px), 6px calc(100% - 6px), 6px calc(100% - 12px), 0 calc(100% - 12px)
+  );
+}
+/* Desfases para que cada carta flote en momentos distintos */
+.card:nth-child(2){animation-delay:-.8s}
+.card:nth-child(3){animation-delay:-1.6s}
+.card:nth-child(4){animation-delay:-2.3s}
+@keyframes float{0%,100%{translate:0 0}50%{translate:0 -5px}}
+
+/* NUEVO: mientras la agarras, el cursor cambia a puño cerrado */
+.card.dragging{cursor:grabbing}
+/* NUEVO: la carta pasa por encima de las demás desde que la agarras
+   hasta que termina de volver a su sitio */
+.card.up{z-index:20}
+
+/* ---------- SOMBRA ----------
+   Elemento aparte (no un box-shadow) para poder moverla en dirección
+   contraria a la inclinación y que parezca que la carta se eleva. */
+.shadow{
+  position:absolute;inset:6px;
+  background:rgba(0,0,0,.45);
+  transform:translate(var(--sx),var(--sy)) scale(var(--sc));
+  clip-path:var(--px);
+}
+
+/* ---------- .tilt: el grupo que se inclina en 3D ---------- */
+.tilt{
+  position:absolute;inset:0;
+  transform-style:preserve-3d;                  /* los hijos conservan su profundidad (translateZ) */
+  transform:rotateX(var(--rx)) rotateY(var(--ry)) scale(var(--sc));
+}
+
+.edge,.face{clip-path:var(--px)}                /* ambas con esquinas pixeladas */
+.edge{position:absolute;inset:0;background:var(--ink)}   /* capa negra de atrás = borde */
+.face{                                          /* cara crema, 5px más chica para dejar ver el borde */
+  position:absolute;inset:5px;
+  background:var(--cream);
+  overflow:hidden;                              /* el brillo no se sale de la carta */
+  color:var(--ink);                             /* símbolos en negro por defecto */
+}
+.red .face{color:var(--red)}                    /* cartas rojas: símbolos en rojo */
+
+/* ---------- ESQUINAS (rango + palo) ---------- */
+.corner{
+  position:absolute;
+  display:flex;flex-direction:column;align-items:center;
+  line-height:.95;font-weight:700;
+  font-size:clamp(22px,4.4vw,32px);
+  transform:translateZ(20px);                   /* flota 20px por delante del fondo → parallax */
+}
+.corner span{font-size:.8em}                    /* el palo es un poco más pequeño que el número */
+.tl{top:10px;left:12px}                         /* arriba izquierda */
+.br{bottom:10px;right:12px;transform:translateZ(20px) rotate(180deg)}  /* abajo derecha, boca abajo */
+
+/* ---------- SÍMBOLO GRANDE DEL CENTRO ---------- */
+.big{
+  position:absolute;inset:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:clamp(60px,11vw,92px);
+  transform:translateZ(40px);                   /* el más adelantado: se mueve más que el resto */
+  text-shadow:0 4px 0 rgba(27,22,38,.18);
+}
+
+/* ---------- EFECTOS DE LUZ (se activan con --glow) ---------- */
+
+/* BRILLO: mancha de luz blanca que sigue al cursor */
+.shine{
+  position:absolute;inset:0;pointer-events:none;
+  opacity:var(--glow);                          /* 0 sin cursor, 1 con cursor */
+  background:radial-gradient(circle at var(--mx) var(--my), rgba(255,255,255,.75), transparent 45%);
+  mix-blend-mode:soft-light;                    /* se mezcla con los colores de abajo en vez de taparlos */
+}
+
+/* HOLOGRÁFICO: degradado arcoíris estilo carta "policromo" */
+.holo{
+  position:absolute;inset:-20%;pointer-events:none;
+  opacity:calc(var(--glow)*.55);                /* a lo sumo 55% de intensidad */
+  mix-blend-mode:color-dodge;                   /* modo de mezcla que ilumina y satura */
+  background:linear-gradient(115deg,#ff2d95,#ffd23f,#3dff9a,#35c8ff,#a45bff,#ff2d95);
+  background-size:300% 300%;                    /* el degradado es mucho más grande que la carta... */
+  background-position:var(--mx) var(--my);      /* ...y se desliza según dónde esté el cursor */
+  filter:saturate(1.4);
+}
+
+/* ---------- VARIANTES ---------- */
+.card.joker .face{background:#d9c8ff}           /* comodín: fondo morado claro */
+.card.joker .big{color:#4a2c8a}
+.card.blue .face{background:#cfe3f7}            /* carta azul */
+.card.blue .big,.card.blue .corner{color:var(--blue)}
+.label{                                         /* texto "COMODÍN" */
+  position:absolute;left:0;right:0;bottom:16px;
+  text-align:center;font-weight:700;font-size:15px;
+  transform:translateZ(30px);
+}
+
+.hint{margin:0;font-size:16px;opacity:.75;text-shadow:0 2px 0 var(--ink);text-align:center}
+
+/* Accesibilidad: sin animaciones si el usuario lo pide en su sistema */
+@media (prefers-reduced-motion:reduce){.bg,.card{animation:none}}
+</style>
+</head>
+
+<body>
+<div class="bg"></div>
+<div class="scan"></div>
+
+<main class="table">
+  <h1>Tu mano</h1>
+
+  <div class="hand">
+    <!--
+      ESTRUCTURA DE CADA CARTA (de atrás hacia adelante):
+      .card            → contenedor con perspectiva, variables y arrastre
+        .shadow        → sombra que se mueve aparte
+        .tilt          → grupo que rota en 3D
+          .edge        → borde negro
+          .face        → cara crema
+            .corner.tl → rango y palo arriba izquierda
+            .big       → símbolo grande central
+            .corner.br → rango y palo abajo derecha (rotado)
+            .holo      → capa arcoíris
+            .shine     → capa de brillo
+    -->
+
+    <!-- As de corazones (clase "red" = símbolos rojos) -->
+    <div class="card red"><div class="shadow"></div><div class="tilt"><div class="edge"></div><div class="face">
+      <div class="corner tl">A<span>♥</span></div>
+      <div class="big">♥</div>
+      <div class="corner br">A<span>♥</span></div>
+      <div class="holo"></div><div class="shine"></div>
+    </div></div></div>
+
+    <!-- K de picas (sin clase extra = símbolos negros) -->
+    <div class="card"><div class="shadow"></div><div class="tilt"><div class="edge"></div><div class="face">
+      <div class="corner tl">K<span>♠</span></div>
+      <div class="big">♠</div>
+      <div class="corner br">K<span>♠</span></div>
+      <div class="holo"></div><div class="shine"></div>
+    </div></div></div>
+
+    <!-- Comodín (clase "joker" = fondo morado) -->
+    <div class="card joker"><div class="shadow"></div><div class="tilt"><div class="edge"></div><div class="face">
+      <div class="corner tl">★</div>
+      <div class="big">🃏</div>
+      <div class="label">COMODÍN</div>
+      <div class="corner br">★</div>
+      <div class="holo"></div><div class="shine"></div>
+    </div></div></div>
+
+    <!-- Q de diamantes (clases "red blue": fondo azul claro, símbolos azules) -->
+    <div class="card red blue"><div class="shadow"></div><div class="tilt"><div class="edge"></div><div class="face">
+      <div class="corner tl">Q<span>♦</span></div>
+      <div class="big">♦</div>
+      <div class="corner br">Q<span>♦</span></div>
+      <div class="holo"></div><div class="shine"></div>
+    </div></div></div>
+  </div>
+
+  <p class="hint">Mueve el ratón sobre las cartas · arrástralas y suéltalas</p>
+</main>
+
+<script>
+/* Función auxiliar: limita un número entre un mínimo y un máximo.
+   clamp(50, 0, 10) → 10   |   clamp(-5, 0, 10) → 0   |   clamp(3, 0, 10) → 3 */
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+/* Cada carta recibe su propio "motor" de movimiento independiente */
+document.querySelectorAll('.card').forEach(card=>{
+
+  // ------------------------------------------------------------
+  // ESTADO DE LA INCLINACIÓN Y LOS EFECTOS (igual que antes)
+  //   s = valores ACTUALES (lo que se ve ahora)
+  //   t = valores OBJETIVO (a dónde quiere llegar)
+  // La carta nunca salta al objetivo: se acerca poco a poco → movimiento suave.
+  // NUEVO: "lift" = qué tan levantada está la carta (0 a 1). Afecta a la sombra.
+  // ------------------------------------------------------------
+  const s={rx:0,ry:0,sc:1,mx:50,my:50,glow:0,lift:0};
+  const t={rx:0,ry:0,sc:1,mx:50,my:50,glow:0,lift:0};
+
+  // ------------------------------------------------------------
+  // NUEVO: ESTADO DE LA FÍSICA DEL ARRASTRE
+  // ------------------------------------------------------------
+  const p={x:0,y:0};      // cuánto se ha movido la carta respecto a su sitio original
+  let vx=0, vy=0;         // velocidad (píxeles por fotograma)
+  let lx=0, ly=0;         // posición del fotograma anterior (para calcular la velocidad)
+  let drag=false;         // ¿se está arrastrando ahora mismo?
+  let startX=0, startY=0; // dónde "agarraste" la carta
+  let hover=false;        // ¿el cursor está encima de la carta?
+  let raf=0;              // id del bucle de animación (0 = detenido)
+
+  // NUEVO: las dos "perillas" del resorte. Cámbialas para ajustar la sensación.
+  const K=0.09;   // fuerza del resorte: más alto = vuelve más rápido
+  const C=0.18;   // amortiguación: más bajo = rebota más veces (0.10 = gelatina, 0.35 = casi sin rebote)
+
+  // ------------------------------------------------------------
+  // BUCLE DE ANIMACIÓN: se ejecuta ~60 veces por segundo mientras haya movimiento
+  // ------------------------------------------------------------
+  function tick(){
+    let moving=false;
+
+    // ===== NUEVO: FÍSICA DE POSICIÓN =====
+    if(drag){
+      // Mientras arrastras, la posición la pone el cursor (ver pointermove).
+      // Aquí solo medimos la velocidad: cuánto se movió desde el fotograma anterior.
+      // El 0.6/0.4 la suaviza para que no sea nerviosa.
+      vx=vx*.6+(p.x-lx)*.4;
+      vy=vy*.6+(p.y-ly)*.4;
+      lx=p.x; ly=p.y;
+      moving=true;
+    }else{
+      // Al SOLTAR: un resorte tira de la carta hacia (0,0).
+      //   -K*p.x  → cuanto más lejos está, más fuerte tira (el resorte)
+      //   -C*vx   → frena la velocidad poco a poco (la fricción)
+      // Como conserva la velocidad con la que la soltaste, se pasa un poco
+      // de su sitio, rebota y se va asentando.
+      vx+=-K*p.x-C*vx;
+      vy+=-K*p.y-C*vy;
+      p.x+=vx;
+      p.y+=vy;
+
+      // ¿Ya llegó y casi no se mueve? Entonces se detiene del todo.
+      if(Math.abs(p.x)<.05&&Math.abs(p.y)<.05&&Math.abs(vx)<.05&&Math.abs(vy)<.05){
+        p.x=p.y=vx=vy=0;
+        card.classList.remove('up');            // baja de capa: ya no tapa a las demás
+        if(!hover){                             // si el cursor ya no está encima, apaga los efectos
+          t.rx=t.ry=0; t.sc=1; t.glow=0; t.mx=t.my=50;
+        }
+      }else moving=true;
+    }
+
+    // ===== NUEVO: INCLINACIÓN SEGÚN LA VELOCIDAD =====
+    // Mientras la carta se mueve (arrastre o regreso), se ladea hacia donde va,
+    // como si el aire la empujara. El 1.1 es la sensibilidad y ±28 el ángulo máximo.
+    if(drag||p.x||p.y){
+      t.ry=clamp(vx*1.1,-28,28);      // moverse a la derecha → gira en Y
+      t.rx=clamp(-vy*1.1,-28,28);     // moverse hacia abajo → gira en X
+    }
+
+    // ===== SUAVIZADO DE INCLINACIÓN, ESCALA, BRILLO Y ELEVACIÓN (igual que antes) =====
+    for(const k in s){
+      const d=t[k]-s[k];              // distancia que falta
+      s[k]+=d*.14;                    // avanza el 14% → efecto resorte suave
+      if(Math.abs(d)>.01) moving=true;
+    }
+
+    // ===== ESCRIBIR LOS VALORES EN LAS VARIABLES CSS (el CSS hace el resto) =====
+    card.style.setProperty('--dx',p.x+'px');          // NUEVO: posición arrastrada
+    card.style.setProperty('--dy',p.y+'px');
+    card.style.setProperty('--rx',s.rx+'deg');
+    card.style.setProperty('--ry',s.ry+'deg');
+    card.style.setProperty('--sc',s.sc);
+    card.style.setProperty('--mx',s.mx+'%');
+    card.style.setProperty('--my',s.my+'%');
+    card.style.setProperty('--glow',s.glow);
+
+    // Sombra: se mueve al contrario de la inclinación.
+    // NUEVO: "+ s.lift*18" la aleja 18px más hacia abajo cuando la carta está levantada.
+    card.style.setProperty('--sx',(-s.ry*1.4)+'px');
+    card.style.setProperty('--sy',(10+s.rx*1.4+s.lift*18)+'px');
+
+    // Si algo sigue en movimiento pide otro fotograma; si no, se detiene y ahorra batería
+    raf=moving?requestAnimationFrame(tick):0;
+  }
+
+  // Arranca el bucle solo si no estaba corriendo ya
+  const go=()=>{ if(!raf) raf=requestAnimationFrame(tick) };
+
+  // Función auxiliar: posición del cursor DENTRO de la carta (0 = borde izq/arriba, 1 = borde der/abajo)
+  function local(e){
+    const r=card.getBoundingClientRect();
+    return { px:(e.clientX-r.left)/r.width, py:(e.clientY-r.top)/r.height };
+  }
+
+  // ------------------------------------------------------------
+  // NUEVO: AL PRESIONAR → empieza el arrastre
+  // ------------------------------------------------------------
+  card.addEventListener('pointerdown',e=>{
+    drag=true;
+    card.setPointerCapture(e.pointerId);   // seguimos recibiendo el cursor aunque salga de la carta
+    // Guardamos dónde la agarraste. Se resta p.x/p.y para que puedas
+    // agarrarla incluso si todavía está rebotando de vuelta.
+    startX=e.clientX-p.x;
+    startY=e.clientY-p.y;
+    lx=p.x; ly=p.y;
+    card.classList.add('dragging','up');   // cursor de puño + pasa por encima de las demás
+    t.sc=1.18;                             // se agranda más que en hover
+    t.lift=1;                              // se levanta (sombra más lejos)
+    t.glow=1;                              // brilla
+    go();
+  });
+
+  // ------------------------------------------------------------
+  // AL MOVER EL CURSOR (sirve para hover y para arrastre)
+  // ------------------------------------------------------------
+  card.addEventListener('pointermove',e=>{
+    const {px,py}=local(e);
+    t.mx=px*100; t.my=py*100;              // el brillo y el holograma siempre siguen al cursor
+    t.glow=1;
+
+    if(drag){
+      // NUEVO: la carta sigue al cursor (posición actual menos donde la agarraste)
+      p.x=e.clientX-startX;
+      p.y=e.clientY-startY;
+    }else{
+      // Efecto hover de antes: inclinación según dónde esté el cursor
+      // (px-.5) va de -0.5 a +0.5 → multiplicado por 34 = máx ±17°
+      hover=true;
+      t.ry=(px-.5)*34;
+      t.rx=-(py-.5)*34;                    // el signo "-" hace que "mire" al cursor
+      t.sc=1.12;                           // se agranda 12%
+    }
+    go();
+  });
+
+  // ------------------------------------------------------------
+  // NUEVO: AL SOLTAR → el resorte la devuelve a su sitio
+  // ------------------------------------------------------------
+  const release=e=>{
+    if(!drag) return;
+    drag=false;                            // el tick() ahora aplica el resorte
+    card.classList.remove('dragging');     // vuelve el cursor de manito abierta
+    t.lift=0;                              // la sombra vuelve a acercarse
+    // ¿El cursor quedó encima de la posición original de la carta?
+    // Si sí, mantiene el efecto hover; si no, se apaga al asentarse.
+    const {px,py}=local(e);
+    hover=px>=0&&px<=1&&py>=0&&py<=1;
+    t.sc=hover?1.12:1;
+    go();
+  };
+  card.addEventListener('pointerup',release);
+  card.addEventListener('pointercancel',release);   // por si el toque se interrumpe en móvil
+
+  // ------------------------------------------------------------
+  // AL SALIR EL CURSOR: todo vuelve al reposo
+  // ------------------------------------------------------------
+  card.addEventListener('pointerleave',()=>{
+    hover=false;
+    if(drag) return;                       // NUEVO: si estás arrastrando, no apagues nada
+    if(!p.x&&!p.y){                        // y solo si no está en pleno regreso
+      t.rx=0;t.ry=0;t.sc=1;t.mx=50;t.my=50;t.glow=0;
+      go();
+    }
+  });
+});
+</script>
+</body>
+</html>
