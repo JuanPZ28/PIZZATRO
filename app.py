@@ -576,7 +576,7 @@ def admin_liquidar_cuenta():
 
     return jsonify(
         ok=True,
-        mensaje="Cuenta y reserva eliminadas correctamente"
+        mensaje="Cuenta y reserva liquidadas correctamente"
     ), 200
 
 
