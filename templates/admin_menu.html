@@ -584,7 +584,7 @@ async function mostrarClientes() {
 
         const clientes = await resp.json();
 
-        contenido.innerHTML = '<h2>Clientes registrados</h2><h3>Advertencia: Eliminar el cliente llevara a eliminar todas sus reservas y sus cuentas sin liquidar</h3>';
+        contenido.innerHTML = '<h2>Clientes registrados</h2><h3>Advertencia: Eliminar al cliente llevará a eliminar todas sus reservas y sus cuentas sin liquidar</h3>';
 
         if (clientes.length === 0) {
             contenido.insertAdjacentHTML(
@@ -692,7 +692,7 @@ async function mostrarReservas() {
 
         const reservas = await resp.json();
 
-        contenido.innerHTML = '<h2> Reservas</h2><h3>Advertencia: Una vez liquidada la cuenta asociada a esta reserva, esta ultima tmabien se borra</h3>';
+        contenido.innerHTML = '<h2> Reservas</h2><h3>Advertencia: Una vez liquidada la cuenta asociada a esta reserva, esta última también se borra</h3>';
 
         if (reservas.length === 0) {
             contenido.insertAdjacentHTML(
@@ -752,7 +752,7 @@ async function mostrarAdmins() {
 
         const admins = await resp.json();
 
-        contenido1.innerHTML = '<h2>Admins registrados</h2>';
+        contenido1.innerHTML = '<h2>Admins registrados</h2><h3>Aviso: Aquí se verán todos los admins excepto tú y el admin maestro</h3>';
 
         if (admins.length === 0) {
             contenido1.insertAdjacentHTML(
